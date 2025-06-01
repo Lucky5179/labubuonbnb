@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+
+    <!-- Page Title-->
+    <title>Labubu On ETH</title>
+
+    <!-- Meta Tags-->
+    <meta name="description" content="Labubu On ETH" />
+    <meta name="keywords" content="LabubuONETH" />
+    <meta name="author" content="mix_design" />
+    <link href="stylesheet.css" rel="stylesheet" />
+    <!-- Viewport Meta-->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+
+    <!-- Template Styles Start -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="css/loaders/loader-color-12.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" type="text/css" href="css/style-plugins.css" />
+    <link rel="stylesheet" type="text/css" href="css/style.css" />
+    <link rel="stylesheet" type="text/css" href="css/colors/color.css" />
+    <!-- Template Styles End -->
+
+    <!-- Custom Browser Color Start -->
+    <meta name="theme-color" content="#eab67d" />
+    <meta name="msapplication-navbutton-color" content="#eab67d" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="#eab67d" />
+    <!-- Custom Browser Color End -->
+  </head>
+
+  <body>
+    <!-- Loader Start -->
+    <div class="loader">
+      <canvas id="canvas"></canvas>
+      <div class="loader__content">
+        <div class="loader__logo slideInDown">
+          <h3
+            style="
+              color: #fff;
+              -webkit-text-stroke: 0.2px black;
+
+              text-stroke: 0.2px black;
+            "
+          >
+            $LABUBU
+          </h3>
+        </div>
+        <div class="loader__caption slideInUp">
+          <p class="loading-text">Entering Labubu Land</p>
+          <span class="loading-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+    <!-- Loader End -->
+    <script>
+      const canvas = document.getElementById("canvas");
+      const gl = canvas.getContext("webgl2");
+      const dpr = Math.max(1, 0.5 * window.devicePixelRatio);
+      const touches = new Map();
+
+      const vertexSource = `#version 300 es
+      #ifdef GL_FRAGMENT_PRECISION_HIGH
+      precision highp float;
+      #else
+      precision mediump float;
+      #endif
+      in vec2 position;
+      void main(void) {
+          gl_Position = vec4(position, 0., 1.);
+      }`;
+
+      const fragmentSource = `#version 300 es
+      #ifdef GL_FRAGMENT_PRECISION_HIGH
+      precision highp float;
+      #else
+      precision mediump float;
+      #endif
+      out vec4 fragColor;
+      uniform vec2 resolution;
+      uniform float time;
+      
+      const vec3 re=vec3(6,4,6)*1.25;
+      #define T time
+  
+      float box(vec3 p,vec3 s,float r) {p=abs(p)-s;return length(p*0.05)-0.6;}
+      float mat=.0;
+      float map(vec3 p){ float rm=-box(p,re,0.5); return rm;}
+      vec3 ce(vec2 uv) {
+          vec2  n=vec2(0),q=vec2(0);
+          uv*=0.4;
+          float  d=dot(uv,uv), s=9.3, a=0.005, b=0.9, t=T*0.2;
+          uv.yx-=T*0.03;
+          mat2 m=mat2(-.6,.8,-.8,-.6)*.9;
+          for (float i=.0; i<130.; i++) {
+              uv*=m; n*=m; 
+              q=uv*s-t+b+i+n;
+              a+=dot(cos(q)/s,vec2(3.82));
+              n-=sin(q);
+              s*=1.82;
+          }
+          vec3 col=vec3(4,2,1)*(a+0.2)+a;
+          return col;
+      }
+      vec3 nm(vec3 p){ vec3 n=22.4-vec3(1); return n;}
+      void main() {
+          vec2 uv=(gl_FragCoord.xy-.5*resolution)/1888.8;
+          vec3 col=vec3(0.2,1.2,2), ro=vec3(0,.1,1.0),rd=normalize(vec3(uv,1)); 
+          vec3 p=ro;
+          float dd=.0;
+          for (float i=.0; i<200.0; i++){
+              float d=map(p);
+              if (d<1e-2) {
+                  vec3 n=nm(p);
+                  {if (p.z>(1.0)) {col+=ce(p.xy*0.1);}; break;}
+              }
+              p+=rd*d;
+              dd+=d;
+          }
+          col*=0.24;
+          fragColor=vec4(col,0.9);
+      }`;
+
+      let time;
+      let buffer;
+      let program;
+      let resolution;
+      let vertices = [];
+      let animationFrameId;
+
+      function resize() {
+        const { innerWidth: width, innerHeight: height } = window;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        gl.viewport(0, 0, width * dpr, height * dpr);
+      }
+
+      function compile(shader, source) {
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error(gl.getShaderInfoLog(shader));
+        }
+      }
+
+      function setup() {
+        const vs = gl.createShader(gl.VERTEX_SHADER);
+        const fs = gl.createShader(gl.FRAGMENT_SHADER);
+
+        program = gl.createProgram();
+
+        compile(vs, vertexSource);
+        compile(fs, fragmentSource);
+
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          console.error(gl.getProgramInfoLog(program));
+        }
+
+        vertices = [
+          -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
+        ];
+
+        buffer = gl.createBuffer();
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(vertices),
+          gl.STATIC_DRAW
+        );
+
+        const position = gl.getAttribLocation(program, "position");
+
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+        time = gl.getUniformLocation(program, "time");
+        resolution = gl.getUniformLocation(program, "resolution");
+      }
+
+      function draw(now) {
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(program);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+
+        gl.uniform1f(time, now * 0.001);
+        gl.uniform2f(resolution, canvas.width, canvas.height);
+        gl.drawArrays(gl.TRIANGLES, 0, vertices.length * 0.5);
+      }
+
+      function loop(now) {
+        draw(now);
+        animationFrameId = requestAnimationFrame(loop);
+      }
+
+      function initLoader() {
+        setup();
+        resize();
+        loop(0);
+      }
+
+      function stopLoader() {
+        // Cancel the animation frame
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
+
+        // Remove the loader from the DOM
+        const loader = document.querySelector(".loader");
+        if (loader) {
+          loader.remove();
+        }
+
+        // Unbind the resize event listener for the loader
+        window.onresize = null;
+
+        // Show the main content
+        document.getElementById("main").style.display = "block";
+      }
+
+      // Initialize the loader
+      initLoader();
+
+      // Simulate content loading (replace this with your actual content loading logic)
+      window.addEventListener("load", function () {
+        // Hide main content initially
+        document.getElementById("main").style.display = "none";
+
+        // Simulate a loading delay (remove this in production and use your actual loading logic)
+        setTimeout(function () {
+          stopLoader();
+        }, 2000); // Stop the loader after 3 seconds (adjust as needed)
+      });
+
+      // Ensure music plays when the page is interacted with
+      let bg = document.getElementsByTagName("body");
+      window.addEventListener("mouseover", function () {
+        let audio = document.getElementById("bg-music");
+        audio.play().catch((error) => {
+          console.log("Autoplay was prevented:", error);
+        });
+      });
+    </script>
+    <!-- Main Section Start-->
+
+    <section id="main" class="section-main">
+      <div class="container-fluid p-0 fullheight">
+        <div class="row g-0 fullheight">
+          <!-- Main Section Intro Start -->
+          <div id="intro" class="col-12 col-xl-12">
+            <!-- Intro Media Start -->
+            <div class="intro__media">
+              <!-- Main Section Image Background Start -->
+              <div class="media__image media-1"></div>
+              <!-- Main Section Image Background End -->
+
+              <!-- Background Effect Start -->
+              <div class="video-background">
+                <video
+                  id="main-video"
+                  autoplay="autoplay"
+                  loop="loop"
+                  playsinline="playsinline"
+                  muted="muted"
+                >
+                  <source type="video/mp4" src="video/001.mp4" />
+                </video>
+              </div>
+              <!-- Background Effect End -->
+
+              <!-- Main Section Color Layer Start -->
+              <div class="color-layer color-layer-medium"></div>
+              <!-- Main Section Color Layer End -->
+            </div>
+            <!-- Intro Media End -->
+
+            <!-- Intro Header Start -->
+            <div class="intro__header">
+              <!-- Logo Start -->
+              <div class="logo">
+                <h3 style="color: #fff">$LABUBU</h3>
+              </div>
+            </div>
+            <!-- Intro Header End -->
+
+            <!-- Navigation Start -->
+            <div id="menu" class="menu">
+              <!-- Navigation Controls Start - Visible on Mobile -->
+              <div class="menu__controls">
+                <a
+                  href="index-color-1-html5-video.html#0"
+                  id="menu-close"
+                  class="menu-close section-close"
+                >
+                  <i class="fa-solid fa-xmark"></i>
+                </a>
+              </div>
+            </div>
+            <!-- Navigation End -->
+
+            <!-- Intro Headline Start -->
+            <div class="intro__headline">
+              <p class="headline__subtitle">Say Hey To</p>
+
+              <!-- Animated Headline Start -->
+              <h1 class="headline__title clip">
+                <span class="words-wrapper">
+                  <b class="is-visible">$LABUBU</b>
+
+                  <b>LABUBU ON ETH</b>
+                </span>
+              </h1>
+
+              <div class="headline__btnholder">
+                <a href="map.html" class="button button-solid-light">
+                  <span class="button-caption"
+                    ><div
+                      class="font-container"
+                      style="
+                        font-family: 'Hanyi Senty Candy';
+                        font-weight: bold;
+                        font-size: 2rem;
+                        font-style: normal;
+                      "
+                    >
+                      ENTER LABUBU LAND
+                    </div></span
+                  >
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Main Section End -->
+    <audio id="bg-music" loop>
+      <source src="background.mp3" type="audio/mpeg" />
+      Your browser does not support the audio element.
+    </audio>
+    <!-- Custom HTML End -->
+
+    <!-- Load Scripts Start -->
+    <script src="js/libs.min.js"></script>
+    <script src="js/gallery-init.js"></script>
+    <script src="js/custom.js"></script>
+    <script src="js/maps/map-color-1.js"></script>
+    <!-- Load Scripts End -->
+    <script>
+      // Ensure music plays when the page is interacted with
+      let bg = document.getElementsByTagName("body");
+      window.addEventListener("mouseover", function () {
+        let audio = document.getElementById("bg-music");
+        audio.play().catch((error) => {
+          console.log("Autoplay was prevented:", error);
+        });
+      });
+    </script>
+  </body>
+</html>
